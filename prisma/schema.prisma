@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  role          Role      @relation(fields: [roleId], references: [id])
+  roleId        String
+}
+
+model Role {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  users       User[]
+  permissions Permission[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  roles       Role[]
+}
+
+model ArizaTipi {
+  id          String   @id @default(cuid())
+  ad          String   @unique
+  ekbilgi     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  arizalar    Ariza[]
+}
+
+model UzmanlikAlani {
+  id          String      @id @default(cuid())
+  ad          String      @unique
+  ekbilgi     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  teknikerler Tekniker[]  @relation("TeknikerUzmanlikAlani")
+}
+
+model Malzeme {
+  id          String   @id @default(cuid())
+  ad          String   @unique
+  birim       String?
+  ekbilgi     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tekniker {
+  id              String          @id @default(cuid())
+  adsoyad         String
+  telefon         String?
+  ekbilgi         String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  uzmanlikAlanlari UzmanlikAlani[] @relation("TeknikerUzmanlikAlani")
+}
+
+model Proje {
+  id          String   @id @default(cuid())
+  ad          String   @unique
+  ekbilgi     String?
+  adres       String
+  konum       String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  bloklar     Blok[]
+}
+
+model Blok {
+  id          String   @id @default(cuid())
+  ad          String
+  ekbilgi     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  proje       Proje    @relation(fields: [projeId], references: [id], onDelete: Cascade)
+  projeId     String
+  daireler    Daire[]
+}
+
+model Daire {
+  id          String   @id @default(cuid())
+  numara      String
+  kat         String?
+  ekbilgi     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  blok        Blok     @relation(fields: [blokId], references: [id], onDelete: Cascade)
+  blokId      String
+  arizalar    Ariza[]
+}
+
+model Ariza {
+  id            String       @id @default(cuid())
+  bildirenKisi  String?
+  telefon       String?
+  aciklama      String
+  ekbilgi       String?
+  oncelik       String       @default("Orta") // Düşük, Orta, Yüksek
+  durum         String       @default("Talep Alındı") // Talep Alındı, Randevu Planlandı, Randevu Yeniden Planlandı, Kısmı Çözüm, Çözüm, İptal Edildi
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  daire         Daire        @relation(fields: [daireId], references: [id], onDelete: Cascade)
+  daireId       String
+  arizaTipi     ArizaTipi?   @relation(fields: [arizaTipiId], references: [id])
+  arizaTipiId   String?
+} 
