@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-
-const prisma = new PrismaClient();
+import { db } from "@/lib/db";
 
 // GET: Bir blok getir
 export async function GET(
@@ -24,7 +22,7 @@ export async function GET(
     const id = params.id;
 
     // Bloku ve projeyi getir
-    const blok = await prisma.blok.findUnique({
+    const blok = await db.blok.findUnique({
       where: {
         id: id,
       },
@@ -45,7 +43,15 @@ export async function GET(
       );
     }
 
-    return new NextResponse(JSON.stringify(blok), { status: 200 });
+    const response = NextResponse.json(blok, { status: 200 });
+    
+    // Cache süresini azaltarak daha hızlı güncellemeleri sağla
+    response.headers.set(
+      "Cache-Control",
+      "no-cache, no-store, must-revalidate"
+    );
+    
+    return response;
   } catch (error: any) {
     console.error("API Error:", error);
     return new NextResponse(
@@ -84,7 +90,7 @@ export async function PUT(
     }
 
     // Blokun var olup olmadığını kontrol et
-    const existingBlok = await prisma.blok.findUnique({
+    const existingBlok = await db.blok.findUnique({
       where: {
         id: id,
       },
@@ -98,17 +104,25 @@ export async function PUT(
     }
 
     // Bloku güncelle
-    const updatedBlok = await prisma.blok.update({
+    const updatedBlok = await db.blok.update({
       where: {
         id: id,
       },
       data: {
         ad,
-        ekbilgi,
+        ekbilgi: ekbilgi,
       },
     });
 
-    return new NextResponse(JSON.stringify(updatedBlok), { status: 200 });
+    const response = NextResponse.json(updatedBlok, { status: 200 });
+    
+    // Cache süresini azaltarak daha hızlı güncellemeleri sağla
+    response.headers.set(
+      "Cache-Control",
+      "no-cache, no-store, must-revalidate"
+    );
+    
+    return response;
   } catch (error: any) {
     console.error("API Error:", error);
     return new NextResponse(
@@ -137,7 +151,7 @@ export async function DELETE(
     const id = params.id;
 
     // Blokun var olup olmadığını kontrol et
-    const existingBlok = await prisma.blok.findUnique({
+    const existingBlok = await db.blok.findUnique({
       where: {
         id: id,
       },
@@ -151,16 +165,24 @@ export async function DELETE(
     }
 
     // Bloku sil
-    await prisma.blok.delete({
+    await db.blok.delete({
       where: {
         id: id,
       },
     });
 
-    return new NextResponse(
-      JSON.stringify({ message: "Blok başarıyla silindi." }),
+    const response = NextResponse.json(
+      { message: "Blok başarıyla silindi." },
       { status: 200 }
     );
+    
+    // Cache süresini azaltarak daha hızlı güncellemeleri sağla
+    response.headers.set(
+      "Cache-Control",
+      "no-cache, no-store, must-revalidate"
+    );
+    
+    return response;
   } catch (error: any) {
     console.error("API Error:", error);
     return new NextResponse(

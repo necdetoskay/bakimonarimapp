@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Edit, Trash2 } from "lucide-react";
 
 type UzmanlikAlani = {
   id: string;
@@ -266,53 +267,52 @@ export default function UzmanlikAlanlariPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Uzmanlık Alanları</CardTitle>
           <CardDescription>
             Sistemdeki tüm uzmanlık alanları
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-slate-100 p-6">
           {uzmanlikAlanlari.length === 0 ? (
-            <div className="text-center p-4 text-muted-foreground">
+            <div className="text-center p-4 bg-white rounded-md text-muted-foreground">
               Henüz uzmanlık alanı bulunmamaktadır.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-100">
-                    <th className="p-2 text-left">Ad</th>
-                    <th className="p-2 text-left">Ek Bilgi</th>
-                    <th className="p-2 text-left">İşlemler</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {uzmanlikAlanlari.map((uzmanlikAlani) => (
-                    <tr key={uzmanlikAlani.id} className="border-b">
-                      <td className="p-2">{uzmanlikAlani.ad}</td>
-                      <td className="p-2">{uzmanlikAlani.ekbilgi || "-"}</td>
-                      <td className="p-2">
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => editUzmanlikAlani(uzmanlikAlani)}
-                          >
-                            Düzenle
-                          </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
-                            onClick={() => deleteUzmanlikAlani(uzmanlikAlani)}
-                          >
-                            Sil
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {uzmanlikAlanlari.map((uzmanlikAlani) => (
+                <Card key={uzmanlikAlani.id} className="overflow-hidden h-full bg-white shadow-sm relative">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{uzmanlikAlani.ad}</CardTitle>
+                    {uzmanlikAlani.teknikerler && uzmanlikAlani.teknikerler.length > 0 && (
+                      <CardDescription>
+                        {uzmanlikAlani.teknikerler.length} tekniker tarafından kullanılıyor
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">
+                      {uzmanlikAlani.ekbilgi || "Ek bilgi bulunmamaktadır."}
+                    </p>
+                  </CardContent>
+                  <div className="absolute bottom-3 right-3 flex space-x-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => editUzmanlikAlani(uzmanlikAlani)}
+                      className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => deleteUzmanlikAlani(uzmanlikAlani)}
+                      className="h-8 w-8 text-rose-600 hover:text-rose-900"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
             </div>
           )}
         </CardContent>

@@ -1,13 +1,11 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
-
-const prisma = new PrismaClient();
+import { db } from "./db";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+  adapter: PrismaAdapter(db) as any,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -20,37 +18,58 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
         
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email
-          },
-          include: {
-            role: {
-              include: {
-                permissions: true
-              }
+        try {
+          // Buscar usuario por email con su rol
+          const user = await db.user.findUnique({
+            where: {
+              email: credentials.email
+            },
+            include: {
+              role: true
             }
+          });
+          
+          if (!user) {
+            console.log("Usuario no encontrado:", credentials.email);
+            return null;
           }
-        });
-        
-        if (!user) {
+          
+          // Verificar contraseña
+          const passwordMatch = await bcrypt.compare(credentials.password, user.password);
+          
+          if (!passwordMatch) {
+            console.log("Contraseña incorrecta para:", credentials.email);
+            return null;
+          }
+          
+          // Obtener permisos desde la base de datos usando prisma raw query
+          const permissionsOnRoles = await db.$queryRaw`
+            SELECT p.name 
+            FROM "Permission" p
+            JOIN "PermissionsOnRoles" por ON p.id = por."permissionId"
+            WHERE por."roleId" = ${user.roleId}
+          `;
+          
+          // Extraer nombres de permisos
+          const permissions = Array.isArray(permissionsOnRoles) 
+            ? permissionsOnRoles.map(p => p.name as string) 
+            : [];
+          
+          console.log("Login exitoso para:", credentials.email);
+          
+          // Devolver objeto de usuario con información necesaria
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            role: user.role.name,
+            permissions: permissions
+          };
+        } catch (error) {
+          console.error("Error en authorize:", error);
           return null;
         }
-        
-        const passwordMatch = await bcrypt.compare(credentials.password, user.password);
-        
-        if (!passwordMatch) {
-          return null;
-        }
-        
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-          role: user.role.name,
-          permissions: user.role.permissions.map((p: { name: string }) => p.name)
-        };
       }
     })
   ],
@@ -80,4 +99,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  debug: process.env.NODE_ENV === "development",
 }; 

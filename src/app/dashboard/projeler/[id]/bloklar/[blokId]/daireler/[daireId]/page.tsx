@@ -12,10 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Building2, Home, AlertTriangle, Edit, Trash2, Plus, Clock, Calendar, User, Phone } from "lucide-react";
+import { 
+  ArrowLeft, Building2, Home, AlertTriangle, Edit, Trash2, Plus, 
+  Clock, Calendar, User, Phone, Wrench, Calendar as CalendarIcon, 
+  CheckCircle, CheckSquare, XCircle, CalendarDays, CalendarPlus, ArrowRight
+} from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import useSWR from "swr";
 
 type Daire = {
   id: string;
@@ -62,19 +67,149 @@ type Ariza = {
   daireId: string;
   arizaTipiId: string | null;
   arizaTipi: ArizaTipi | null;
-}
+  randevular: Randevu[];
+};
+
+type Tekniker = {
+  id: string;
+  adsoyad: string;
+  telefon: string | null;
+  ekbilgi: string | null;
+  uzmanlikAlanlari: Array<{ id: string; ad: string }>;
+};
+
+type Malzeme = {
+  id: string;
+  ad: string;
+  birim: string | null;
+};
+
+type RandevuMalzeme = {
+  id: string;
+  miktar: number;
+  birim: string | null;
+  fiyat: number;
+  malzeme: Malzeme;
+};
+
+type Randevu = {
+  id: string;
+  tarih: string;
+  notlar: string | null;
+  durum: string;
+  sonuc: string | null;
+  ariza: Ariza;
+  tekniker: Tekniker | null;
+  teknikerId: string | null;
+  oncekiRandevuId: string | null;
+  oncekiRandevu: Randevu | null;
+  sonrakiRandevu: Randevu | null;
+  createdAt: string;
+  updatedAt: string;
+  kullanilanMalzemeler: RandevuMalzeme[];
+};
+
+// Fetch fonksiyonu
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const error = new Error("Veri çekerken bir hata oluştu");
+    throw error;
+  }
+  return res.json();
+};
+
+// Arıza masrafını hesapla
+const hesaplaArizaMasrafi = (ariza: Ariza): number => {
+  if (!ariza.randevular || ariza.randevular.length === 0) return 0;
+  
+  let toplamMasraf = 0;
+  
+  // Tüm randevulardaki kullanılan malzemelerin masraflarını topla
+  ariza.randevular.forEach(randevu => {
+    if (randevu.kullanilanMalzemeler && randevu.kullanilanMalzemeler.length > 0) {
+      randevu.kullanilanMalzemeler.forEach(malzeme => {
+        toplamMasraf += malzeme.miktar * (malzeme.fiyat || 0);
+      });
+    }
+  });
+  
+  return toplamMasraf;
+};
 
 export default function DaireDetayPage({ params }: { params: { id: string; blokId: string; daireId: string } }) {
   const { data: session } = useSession();
   const router = useRouter();
   const { toast } = useToast();
   
-  const [daire, setDaire] = useState<Daire | null>(null);
-  const [blok, setBlok] = useState<Blok | null>(null);
-  const [proje, setProje] = useState<Proje | null>(null);
+  // SWR ile veri getirme - performans için caching etkinleştirme
+  const { data: daire, error: daireError } = useSWR<Daire>(
+    session ? `/api/daireler/${params.daireId}` : null, 
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      dedupingInterval: 10000 
+    }
+  );
+
+  const { data: blok, error: blokError } = useSWR<Blok>(
+    session && daire ? `/api/bloklar/${params.blokId}` : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      dedupingInterval: 10000 
+    }
+  );
+
+  const { data: proje, error: projeError } = useSWR<Proje>(
+    session && blok ? `/api/projeler/${params.id}` : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false, 
+      dedupingInterval: 10000 
+    }
+  );
+
+  const { data: arizalar = [], error: arizalarError, mutate: mutateArizalar } = useSWR<Ariza[]>(
+    session && daire ? `/api/arizalar?daireId=${params.daireId}` : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      dedupingInterval: 10000
+    }
+  );
+
+  // useEffect yerine SWR kullanarak arıza tiplerini getir - yalnızca açıldığında
+  const { data: arizaTipleri = [], error: arizaTipleriError } = useSWR<ArizaTipi[]>(
+    session ? "/api/ariza-tipleri" : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      dedupingInterval: 60000 // 1 dakika - bu nadiren değişir
+    }
+  );
+
+  // Tekniker ve malzeme verilerini lazy loading ile getirme
+  const [teknikerlerLoaded, setTeknikerlerLoaded] = useState(false);
+  const { data: teknikerler = [], error: teknikerlerError } = useSWR<Tekniker[]>(
+    session && teknikerlerLoaded ? "/api/teknikerler" : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      dedupingInterval: 60000 // 1 dakika - bu nadiren değişir
+    }
+  );
+
+  const { data: malzemeler = [], error: malzemelerError } = useSWR<Malzeme[]>(
+    session && teknikerlerLoaded ? "/api/malzemeler" : null,
+    fetcher,
+    { 
+      revalidateOnFocus: false,
+      dedupingInterval: 60000 // 1 dakika - bu nadiren değişir
+    }
+  );
+  
   const [isLoading, setIsLoading] = useState(true);
-  const [arizalar, setArizalar] = useState<Ariza[]>([]);
-  const [arizaTipleri, setArizaTipleri] = useState<ArizaTipi[]>([]);
   const [isAddArizaOpen, setIsAddArizaOpen] = useState(false);
   
   // Edit arıza state
@@ -96,69 +231,55 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
   const [oncelik, setOncelik] = useState("Orta");
   const [ekbilgi, setEkbilgi] = useState("");
   
-  // Daire, blok ve proje verilerini getir
+  // Randevu states
+  const [randevular, setRandevular] = useState<Randevu[]>([]);
+  const [isRandevuModalOpen, setIsRandevuModalOpen] = useState(false);
+  const [isRandevuEditModalOpen, setIsRandevuEditModalOpen] = useState(false);
+  const [selectedAriza, setSelectedAriza] = useState<Ariza | null>(null);
+  const [selectedRandevu, setSelectedRandevu] = useState<Randevu | null>(null);
+  const [randevuTarih, setRandevuTarih] = useState("");
+  const [randevuSaat, setRandevuSaat] = useState("");
+  const [randevuTeknikerId, setRandevuTeknikerId] = useState("");
+  const [randevuNotlar, setRandevuNotlar] = useState("");
+  const [randevuOnaylandi, setRandevuOnaylandi] = useState(false);
+  const [secilenMalzemeler, setSecilenMalzemeler] = useState<Array<{
+    malzemeId: string;
+    miktar: number;
+    birim: string | null;
+  }>>([]);
+
+  // Yükleme durumunu izleme
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (!session) return;
-        
-        // Daireyi getir
-        const daireResponse = await fetch(`/api/daireler/${params.daireId}`);
-        
-        if (!daireResponse.ok) {
-          if (daireResponse.status === 404) {
-            router.push(`/dashboard/projeler/${params.id}/bloklar/${params.blokId}`);
-            return;
-          }
-          throw new Error("Daire getirilemedi");
-        }
-        
-        const daireData = await daireResponse.json();
-        setDaire(daireData);
-        
-        // Bloku getir
-        const blokResponse = await fetch(`/api/bloklar/${params.blokId}`);
-        
-        if (blokResponse.ok) {
-          const blokData = await blokResponse.json();
-          setBlok(blokData);
-          
-          // Projeyi getir
-          const projeResponse = await fetch(`/api/projeler/${params.id}`);
-          
-          if (projeResponse.ok) {
-            const projeData = await projeResponse.json();
-            setProje(projeData);
-          }
-        }
-        
-        // Arızaları getir
-        const arizalarResponse = await fetch(`/api/arizalar?daireId=${params.daireId}`);
-        if (arizalarResponse.ok) {
-          const arizalarData = await arizalarResponse.json();
-          setArizalar(arizalarData);
-        }
-        
-        // Arıza tiplerini getir
-        const arizaTipleriResponse = await fetch(`/api/ariza-tipleri`);
-        if (arizaTipleriResponse.ok) {
-          const arizaTipleriData = await arizaTipleriResponse.json();
-          setArizaTipleri(arizaTipleriData);
-        }
-      } catch (error) {
-        console.error("Hata:", error);
-        toast({
-          title: "Hata",
-          description: "Veriler yüklenirken bir hata oluştu",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+    // Ana veri yüklendiğinde isLoading'i güncelle
+    if (daire && (blokError || blok) && (projeError || proje) && (arizalarError || arizalar) && (arizaTipleriError || arizaTipleri)) {
+      setIsLoading(false);
+    }
+  }, [daire, blok, proje, arizalar, arizaTipleri, blokError, projeError, arizalarError, arizaTipleriError]);
+
+  // Randevuyu açmadan önce teknikerleri ve malzemeleri yüklememek için lazy loading
+  const prepareRandevuModal = (ariza: Ariza) => {
+    setSelectedAriza(ariza);
+    setTeknikerlerLoaded(true); // Teknikerler ve malzemeleri şimdi yükle
+    fetchRandevular(ariza.id);
+    resetRandevuForm();
+    setIsRandevuModalOpen(true);
+  };
+
+  // Arıza için randevuları getir - sadece açıldığında
+  const fetchRandevular = async (arizaId: string) => {
+    try {
+      const response = await fetch(`/api/randevular?arizaId=${arizaId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRandevular(data);
+        return data;
       }
-    };
-    
-    fetchData();
-  }, [session, params.id, params.blokId, params.daireId, router, toast]);
+      return [];
+    } catch (error) {
+      console.error("Randevular getirilirken hata:", error);
+      return [];
+    }
+  };
   
   // Yeni arıza ekle
   const handleAddAriza = async (e: React.FormEvent) => {
@@ -186,14 +307,8 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
         throw new Error(errorData.error || "Arıza eklenirken bir hata oluştu");
       }
       
-      const data = await response.json();
-      
-      // Arızaları yenile
-      const arizalarResponse = await fetch(`/api/arizalar?daireId=${params.daireId}`);
-      if (arizalarResponse.ok) {
-        const arizalarData = await arizalarResponse.json();
-        setArizalar(arizalarData);
-      }
+      // SWR önbelleğini güncelle
+      mutateArizalar();
       
       // Formu temizle ve modalı kapat
       resetArizaForm();
@@ -251,7 +366,7 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
   };
   
   // Arıza düzenleme formunu aç
-  const openEditArizaForm = (ariza: Ariza) => {
+  const handleEditAriza = (ariza: Ariza) => {
     setEditingAriza(ariza);
     setEditBildirenKisi(ariza.bildirenKisi || "");
     setEditTelefon(ariza.telefon || "");
@@ -264,7 +379,7 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
   };
   
   // Arıza düzenleme
-  const handleEditAriza = async (e: React.FormEvent) => {
+  const handleEditArizaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!editingAriza) return;
@@ -291,12 +406,8 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
         throw new Error(errorData.error || "Arıza güncellenirken bir hata oluştu");
       }
       
-      // Arızaları yenile
-      const arizalarResponse = await fetch(`/api/arizalar?daireId=${params.daireId}`);
-      if (arizalarResponse.ok) {
-        const arizalarData = await arizalarResponse.json();
-        setArizalar(arizalarData);
-      }
+      // SWR önbelleğini güncelle
+      mutateArizalar();
       
       // Modalı kapat
       setIsEditArizaOpen(false);
@@ -315,12 +426,263 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
     }
   };
   
+  // Randevu ekle modalını aç
+  const openRandevuModal = async (ariza: Ariza) => {
+    prepareRandevuModal(ariza);
+  };
+  
+  // Randevu formunu sıfırla
+  const resetRandevuForm = () => {
+    setRandevuTarih("");
+    setRandevuSaat("");
+    setRandevuTeknikerId("");
+    setRandevuNotlar("");
+    setSecilenMalzemeler([]);
+    setRandevuOnaylandi(false);
+  };
+  
+  // Randevu ekle
+  const handleAddRandevu = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedAriza) return;
+    
+    if (!randevuTarih || !randevuSaat) {
+      toast({
+        title: "Hata",
+        description: "Tarih ve saat seçimi zorunludur",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      // Tarih ve saati birleştir
+      const tarihSaat = `${randevuTarih}T${randevuSaat}:00`;
+      
+      const response = await fetch("/api/randevular", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          arizaId: selectedAriza.id,
+          tarih: tarihSaat,
+          teknikerId: randevuTeknikerId || null,
+          notlar: randevuNotlar,
+          malzemeler: secilenMalzemeler.length > 0 ? secilenMalzemeler : undefined
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Randevu eklenirken bir hata oluştu");
+      }
+      
+      // SWR önbelleğini güncelle
+      mutateArizalar();
+      
+      // Modalı kapat
+      setIsRandevuModalOpen(false);
+      
+      toast({
+        title: "Başarılı",
+        description: "Randevu başarıyla oluşturuldu",
+      });
+    } catch (error: any) {
+      console.error("Hata:", error);
+      toast({
+        title: "Hata",
+        description: error.message || "Randevu eklenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Randevu durumunu güncelle
+  const updateRandevuDurum = async (randevuId: string, yeniDurum: string, sonuc?: string) => {
+    try {
+      const response = await fetch(`/api/randevular/${randevuId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          durum: yeniDurum,
+          sonuc
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Randevu güncellenirken bir hata oluştu");
+      }
+      
+      // SWR önbelleğini güncelle
+      mutateArizalar();
+      
+      // Seçili arıza varsa randevuları yenile
+      if (selectedAriza) {
+        await fetchRandevular(selectedAriza.id);
+      }
+      
+      toast({
+        title: "Başarılı",
+        description: "Randevu durumu güncellendi",
+      });
+    } catch (error: any) {
+      console.error("Hata:", error);
+      toast({
+        title: "Hata",
+        description: error.message || "Randevu güncellenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Randevuyu iptal et
+  const cancelRandevu = async (randevuId: string) => {
+    if (confirm("Bu randevuyu iptal etmek istediğinize emin misiniz?")) {
+      await updateRandevuDurum(randevuId, "İptal Edildi");
+    }
+  };
+  
+  // Randevuyu tamamla
+  const completeRandevu = async (randevuId: string) => {
+    if (confirm("Bu randevuyu tamamlanmış olarak işaretlemek istediğinize emin misiniz?")) {
+      await updateRandevuDurum(randevuId, "Tamamlandı", "Arıza başarıyla giderildi.");
+    }
+  };
+  
+  // Kısmi çözüm işaretle
+  const markPartialSolution = async (randevuId: string) => {
+    if (confirm("Bu randevuyu kısmi çözüm olarak işaretlemek istediğinize emin misiniz?")) {
+      await updateRandevuDurum(randevuId, "Kısmı Çözüm", "Arıza kısmen giderildi, ek işlem gerekiyor.");
+    }
+  };
+  
+  // Yeni malzeme ekle
+  const addMalzeme = () => {
+    if (secilenMalzemeler.length < malzemeler.length) {
+      setSecilenMalzemeler([
+        ...secilenMalzemeler,
+        { malzemeId: "", miktar: 1, birim: null }
+      ]);
+    }
+  };
+  
+  // Malzeme kaldır
+  const removeMalzeme = (index: number) => {
+    const yeniMalzemeler = [...secilenMalzemeler];
+    yeniMalzemeler.splice(index, 1);
+    setSecilenMalzemeler(yeniMalzemeler);
+  };
+  
+  // Malzeme güncelle
+  const updateMalzeme = (index: number, field: string, value: any) => {
+    const yeniMalzemeler = [...secilenMalzemeler];
+    
+    if (field === "malzemeId") {
+      yeniMalzemeler[index].malzemeId = value;
+      // Seçilen malzemenin birimini otomatik olarak ayarla
+      const seciliMalzeme = malzemeler.find(m => m.id === value);
+      if (seciliMalzeme && seciliMalzeme.birim) {
+        yeniMalzemeler[index].birim = seciliMalzeme.birim;
+      }
+    } else if (field === "miktar") {
+      yeniMalzemeler[index].miktar = parseFloat(value);
+    } else if (field === "birim") {
+      yeniMalzemeler[index].birim = value;
+    }
+    
+    setSecilenMalzemeler(yeniMalzemeler);
+  };
+  
+  // Randevu durum badge rengi
+  const getRandevuDurumBadgeVariant = (durum: string) => {
+    switch(durum) {
+      case "Planlandı": return "secondary";
+      case "Tamamlandı": return "success";
+      case "Kısmı Çözüm": return "default";
+      case "İptal Edildi": return "destructive";
+      default: return "secondary";
+    }
+  };
+  
+  // Arıza sil
+  const handleDeleteAriza = async (arizaId: string) => {
+    // Kullanıcıya onay sor
+    if (!confirm("Bu arıza kaydını silmek istediğinize emin misiniz?")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/arizalar/${arizaId}`, {
+        method: "DELETE",
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Arıza silinirken bir hata oluştu");
+      }
+      
+      // SWR önbelleğini güncelle
+      mutateArizalar();
+      
+      toast({
+        title: "Başarılı",
+        description: "Arıza kaydı başarıyla silindi",
+      });
+    } catch (error: any) {
+      console.error("Hata:", error);
+      toast({
+        title: "Hata",
+        description: error.message || "Arıza silinirken bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Hata durumlarını kontrol et
+  const isError = daireError || blokError || projeError || arizalarError || arizaTipleriError;
+  
   if (isLoading) {
-    return <div className="flex justify-center items-center h-64">Yükleniyor...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground">Daire bilgileri yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="p-4 bg-red-50 rounded-lg text-red-600">
+          <h3 className="font-medium text-lg">Veri yüklenirken bir hata oluştu</h3>
+          <p className="text-sm">Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.</p>
+        </div>
+        <Button variant="outline" onClick={() => router.push(`/dashboard/projeler/${params.id}/bloklar/${params.blokId}`)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Geri Dön
+        </Button>
+      </div>
+    );
   }
   
   if (!daire) {
-    return <div className="text-center p-10">Daire bulunamadı.</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="p-4 bg-amber-50 rounded-lg text-amber-600">
+          <h3 className="font-medium text-lg">Daire bulunamadı</h3>
+          <p className="text-sm">Aradığınız daire kaydı mevcut değil veya erişim izniniz yok.</p>
+        </div>
+        <Button variant="outline" onClick={() => router.push(`/dashboard/projeler/${params.id}/bloklar/${params.blokId}`)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Bloğa Dön
+        </Button>
+      </div>
+    );
   }
   
   return (
@@ -503,87 +865,84 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
         </div>
         
         {arizalar.length === 0 ? (
-          <div className="text-center p-10 border rounded-lg bg-slate-50">
-            <AlertTriangle className="mx-auto h-10 w-10 text-slate-400" />
-            <h3 className="mt-4 text-lg font-medium">Henüz arıza kaydı bulunmamaktadır</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Yeni bir arıza eklemek için "Yeni Arıza Kaydı" butonuna tıklayın.
+          <div className="text-center py-8">
+            <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground" />
+            <p className="mt-2 text-lg font-medium">Henüz arıza kaydı bulunmuyor.</p>
+            <p className="text-sm text-muted-foreground">
+              Yeni bir arıza kaydı oluşturmak için "Yeni Arıza Kaydı" butonuna tıklayın.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {arizalar.map((ariza) => (
-              <Card key={ariza.id} className="overflow-hidden">
-                <CardHeader className="bg-slate-50 border-b p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <CardTitle className="text-base">
-                        {ariza.arizaTipi?.ad || "Diğer Arıza"}
-                      </CardTitle>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Calendar className="h-3.5 w-3.5 mr-1" />
-                        <span>
-                          {format(new Date(ariza.createdAt), "d MMM yyyy, HH:mm", { locale: tr })}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Badge variant={getOncelikBadgeVariant(ariza.oncelik)}>
-                        {ariza.oncelik}
-                      </Badge>
-                      <Badge variant={getDurumBadgeVariant(ariza.durum)}>
-                        {ariza.durum}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="p-4">
-                  <div className="space-y-3">
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {arizalar.map((ariza) => (
+                <Card key={ariza.id} className="overflow-hidden h-full">
+                  <CardHeader className="flex flex-row justify-between items-start space-y-0 pb-2">
                     <div>
-                      <h4 className="font-medium text-sm">Arıza Açıklaması:</h4>
-                      <p className="text-sm mt-1">{ariza.aciklama}</p>
+                      <CardTitle className="text-lg font-semibold">
+                        {ariza.arizaTipi?.ad || "Genel Arıza"}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Bildirim: {format(new Date(ariza.createdAt), "d MMMM yyyy", { locale: tr })}
+                      </p>
                     </div>
-                    
-                    {ariza.bildirenKisi && (
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3.5 w-3.5" />
-                          <span>{ariza.bildirenKisi}</span>
-                        </div>
-                        
+                    <Badge variant={getDurumBadgeVariant(ariza.durum)}>{ariza.durum}</Badge>
+                  </CardHeader>
+                  <CardContent className="pb-1">
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex flex-wrap gap-3">
+                        {ariza.bildirenKisi && (
+                          <div className="flex items-center">
+                            <User className="h-4 w-4 mr-1 text-muted-foreground" />
+                            <span className="text-sm">{ariza.bildirenKisi}</span>
+                          </div>
+                        )}
                         {ariza.telefon && (
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3.5 w-3.5" />
-                            <span>{ariza.telefon}</span>
+                          <div className="flex items-center">
+                            <Phone className="h-4 w-4 mr-1 text-muted-foreground" />
+                            <span className="text-sm">{ariza.telefon}</span>
                           </div>
                         )}
                       </div>
-                    )}
-                    
-                    {ariza.ekbilgi && (
-                      <div>
-                        <h4 className="font-medium text-sm">Ek Bilgi:</h4>
-                        <p className="text-sm mt-1">{ariza.ekbilgi}</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-                
-                <CardFooter className="flex justify-end border-t p-2 bg-slate-50">
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEditArizaForm(ariza)}>
-                      <Edit className="h-3.5 w-3.5 mr-1" />
-                      Düzenle
-                    </Button>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Sil
-                    </Button>
-                  </div>
-                </CardFooter>
-              </Card>
-            ))}
+                      <p className="mt-1 line-clamp-2">{ariza.aciklama}</p>
+                      {ariza.ekbilgi && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{ariza.ekbilgi}</p>
+                      )}
+                      
+                      {/* Toplam masraf bilgisini ekleyelim */}
+                      {ariza.randevular && ariza.randevular.length > 0 && (
+                        <div className="flex items-center mt-2 pt-2 border-t border-gray-100">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm font-medium">
+                            Toplam Masraf: {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(hesaplaArizaMasrafi(ariza))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-end pt-0 mt-auto">
+                    <div className="flex space-x-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleEditAriza(ariza)}>
+                        <Edit className="h-4 w-4 mr-1" />
+                        Düzenle
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteAriza(ariza.id)}>
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Sil
+                      </Button>
+                      <Button variant="default" size="sm" asChild>
+                        <Link href={`/dashboard/arizalar/${ariza.id}`}>
+                          <ArrowRight className="h-4 w-4 mr-1" />
+                          Detay
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -597,7 +956,7 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
               Arıza bilgilerini güncelleyin ve kaydet butonuna tıklayın.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditAriza}>
+          <form onSubmit={handleEditArizaSubmit}>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 md:col-span-1">
@@ -697,6 +1056,149 @@ export default function DaireDetayPage({ params }: { params: { id: string; blokI
                 İptal
               </Button>
               <Button type="submit">Güncelle</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Randevu Ekle Modal */}
+      <Dialog open={isRandevuModalOpen} onOpenChange={setIsRandevuModalOpen}>
+        <DialogContent className="sm:max-w-[525px]">
+          <DialogHeader>
+            <DialogTitle>Yeni Randevu Kaydı</DialogTitle>
+            <DialogDescription>
+              Randevu bilgilerini doldurun ve kaydet butonuna tıklayın.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddRandevu}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 md:col-span-1">
+                  <Label htmlFor="randevu-tarih">Randevu Tarihi</Label>
+                  <Input
+                    id="randevu-tarih"
+                    type="date"
+                    value={randevuTarih}
+                    onChange={(e) => setRandevuTarih(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <Label htmlFor="randevu-saat">Randevu Saati</Label>
+                  <Input
+                    id="randevu-saat"
+                    type="time"
+                    value={randevuSaat}
+                    onChange={(e) => setRandevuSaat(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="randevu-tekniker">Randevu Teknikeri</Label>
+                <Select value={randevuTeknikerId} onValueChange={setRandevuTeknikerId}>
+                  <SelectTrigger id="randevu-tekniker" className="mt-1">
+                    <SelectValue placeholder="Randevu teknikerini seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teknikerler.map((tekniker) => (
+                      <SelectItem key={tekniker.id} value={tekniker.id}>
+                        {tekniker.adsoyad}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="randevu-notlar">Randevu Notları</Label>
+                <Textarea
+                  id="randevu-notlar"
+                  value={randevuNotlar}
+                  onChange={(e) => setRandevuNotlar(e.target.value)}
+                  className="mt-1"
+                  rows={3}
+                />
+              </div>
+              
+              {/* Malzeme Seçimi */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label>Kullanılacak Malzemeler</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addMalzeme}
+                    disabled={secilenMalzemeler.length >= malzemeler.length}
+                    className="h-8"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Malzeme Ekle
+                  </Button>
+                </div>
+                
+                {secilenMalzemeler.length > 0 ? (
+                  <div className="space-y-2 mt-2">
+                    {secilenMalzemeler.map((item, index) => (
+                      <div key={index} className="flex flex-wrap items-center gap-2 p-2 border rounded-md">
+                        <div className="flex-1 min-w-[200px]">
+                          <Select 
+                            value={item.malzemeId} 
+                            onValueChange={(value) => updateMalzeme(index, "malzemeId", value)}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Malzeme seçin" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {malzemeler.map((malzeme) => (
+                                <SelectItem key={malzeme.id} value={malzeme.id}>
+                                  {malzeme.ad}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <Input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={item.miktar.toString()}
+                            onChange={(e) => updateMalzeme(index, "miktar", e.target.value)}
+                            className="w-[80px] h-8"
+                          />
+                          
+                          <span className="px-2">{item.birim || "adet"}</span>
+                          
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => removeMalzeme(index)}
+                            className="h-8 w-8"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-2 text-sm text-muted-foreground">
+                    Henüz malzeme eklenmedi
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsRandevuModalOpen(false)}>
+                İptal
+              </Button>
+              <Button type="submit">Kaydet</Button>
             </DialogFooter>
           </form>
         </DialogContent>

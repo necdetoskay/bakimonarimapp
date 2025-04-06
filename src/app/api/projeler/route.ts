@@ -3,33 +3,58 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// Prisma istemcisini daha verimli bir şekilde oluştur
+// Bu, bağlantı havuzunu yeniden kullanır ve daha iyi performans sağlar
+import { db } from "@/lib/db";
+
+// Sık sorgulanan verileri önbelleğe almak için cache headers
+const cacheHeaders = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+  "CDN-Cache-Control": "public, max-age=60",
+};
 
 // GET: Tüm projeleri getir
 export async function GET(req: NextRequest) {
   try {
     // Oturum kontrolü
     const session = await getServerSession(authOptions);
-
-    if (!session) {
-      return new NextResponse(
-        JSON.stringify({ error: "Bu işlem için yetkiniz yok." }),
+    if (!session?.user) {
+      return NextResponse.json(
+        { message: "Yetkisiz erişim" },
         { status: 401 }
       );
     }
 
-    // Tüm projeleri getir
-    const projeler = await prisma.proje.findMany({
-      orderBy: {
-        createdAt: "desc", // En yeni projeler önce
+    // Projeleri getir
+    const projeler = await db.proje.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        ad: true,
+        adres: true,
+        konum: true,
+        image: true,
+        ekbilgi: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
-    return NextResponse.json(projeler);
+    // Önbelleğe alma yönergeleri ekle
+    const response = NextResponse.json(projeler);
+    
+    // 60 saniye boyunca istemci tarafında önbelleğe alınabilir
+    // 300 saniye boyunca shared cache'de (CDN) saklanabilir
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=300, stale-while-revalidate=60"
+    );
+    
+    return response;
   } catch (error) {
-    console.error("API Error:", error);
-    return new NextResponse(
-      JSON.stringify({ error: "Veri alınırken bir hata oluştu." }),
+    console.error("Projeler getirme hatası:", error);
+    return NextResponse.json(
+      { message: "Projeler getirilirken bir hata oluştu" },
       { status: 500 }
     );
   }
@@ -40,61 +65,53 @@ export async function POST(req: NextRequest) {
   try {
     // Oturum kontrolü
     const session = await getServerSession(authOptions);
-
-    if (!session) {
-      return new NextResponse(
-        JSON.stringify({ error: "Bu işlem için yetkiniz yok." }),
+    if (!session?.user) {
+      return NextResponse.json(
+        { message: "Yetkisiz erişim" },
         { status: 401 }
       );
     }
 
-    // Gelen veriyi al
+    // İstek gövdesini analiz et
     const body = await req.json();
-    const { ad, ekbilgi, adres, konum, image } = body;
+    const { ad, adres, konum, image, ekbilgi } = body;
 
-    // Veri doğrulama
-    if (!ad) {
-      return new NextResponse(
-        JSON.stringify({ error: "Proje adı gereklidir." }),
+    // Zorunlu alanları kontrol et
+    if (!ad || !adres) {
+      return NextResponse.json(
+        { message: "Proje adı ve adresi zorunludur" },
         { status: 400 }
       );
     }
 
-    if (!adres) {
-      return new NextResponse(
-        JSON.stringify({ error: "Proje adresi gereklidir." }),
-        { status: 400 }
-      );
-    }
-
-    // Daha önce aynı adda proje var mı kontrol et
-    const existingProje = await prisma.proje.findUnique({
+    // Aynı ada sahip proje var mı kontrol et
+    const existingProje = await db.proje.findFirst({
       where: { ad },
     });
 
     if (existingProje) {
-      return new NextResponse(
-        JSON.stringify({ error: "Bu isimle bir proje zaten mevcut." }),
+      return NextResponse.json(
+        { message: "Bu ada sahip bir proje zaten var" },
         { status: 400 }
       );
     }
 
     // Yeni proje oluştur
-    const proje = await prisma.proje.create({
+    const proje = await db.proje.create({
       data: {
         ad,
-        ekbilgi,
         adres,
-        konum,
-        image,
+        konum: konum || null,
+        image: image || null,
+        ekbilgi: ekbilgi || null,
       },
     });
 
     return NextResponse.json(proje);
   } catch (error) {
-    console.error("API Error:", error);
-    return new NextResponse(
-      JSON.stringify({ error: "Proje eklenirken bir hata oluştu." }),
+    console.error("Proje ekleme hatası:", error);
+    return NextResponse.json(
+      { message: "Proje eklenirken bir hata oluştu" },
       { status: 500 }
     );
   }

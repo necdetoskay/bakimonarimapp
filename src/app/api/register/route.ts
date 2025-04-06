@@ -1,8 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-
-const prisma = new PrismaClient();
+import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -17,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     // Email daha önce kullanılmış mı kontrol et
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await db.user.findUnique({
       where: { email },
     });
 
@@ -28,23 +27,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Varsayılan user rolünü getir
-    const userRole = await prisma.role.findUnique({
+    // "user" rolünü bul veya oluştur
+    let userRole = await db.role.findUnique({
       where: { name: "user" },
     });
 
+    // Eğer user rolü yoksa, onu oluştur
     if (!userRole) {
-      return NextResponse.json(
-        { message: "Kullanıcı rolü bulunamadı" },
-        { status: 500 }
-      );
+      userRole = await db.role.create({
+        data: {
+          name: "user",
+          description: "Standart kullanıcı rolü"
+        },
+      });
+      console.log("User rolü otomatik olarak oluşturuldu:", userRole.id);
     }
 
     // Şifreyi hash'le
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Kullanıcıyı oluştur
-    const newUser = await prisma.user.create({
+    const newUser = await db.user.create({
       data: {
         name,
         email,

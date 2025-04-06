@@ -36,6 +36,15 @@ export async function GET(req: NextRequest) {
               }
             }
           }
+        },
+        randevular: {
+          include: {
+            kullanilanMalzemeler: {
+              include: {
+                malzeme: true
+              }
+            }
+          }
         }
       },
       orderBy: {

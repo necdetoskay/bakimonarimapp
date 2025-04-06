@@ -13,98 +13,148 @@ import {
   Briefcase,
   Package,
   Wrench,
-  Building2
+  Building2,
+  Settings,
+  LayoutDashboard,
+  FileText,
+  Hammer
 } from "lucide-react";
+import { 
+  Accordion, 
+  AccordionContent, 
+  AccordionItem, 
+  AccordionTrigger 
+} from "@/components/ui/accordion";
 
 const Sidebar = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
 
-  const menuItems = [
+  // Define menu categories
+  const menuCategories = [
     {
-      title: "Dashboard",
-      href: "/dashboard",
-      icon: Home,
-      showAlways: true,
+      title: "Genel",
+      icon: LayoutDashboard,
+      items: [
+        {
+          title: "Dashboard",
+          href: "/dashboard",
+          icon: Home,
+          showAlways: true,
+        },
+      ]
     },
     {
-      title: "Kullanıcılar",
-      href: "/dashboard/users",
+      title: "Kullanıcı Yönetimi",
       icon: Users,
-      adminOnly: false,
+      items: [
+        {
+          title: "Kullanıcılar",
+          href: "/dashboard/users",
+          icon: Users,
+          adminOnly: false,
+        },
+        {
+          title: "Roller",
+          href: "/dashboard/roles",
+          icon: Shield,
+          adminOnly: false,
+        },
+        {
+          title: "İzinler",
+          href: "/dashboard/permissions",
+          icon: Key,
+          adminOnly: false,
+        },
+      ]
     },
     {
-      title: "Roller",
-      href: "/dashboard/roles",
-      icon: Shield,
-      adminOnly: false,
+      title: "Arıza Yönetimi",
+      icon: Hammer,
+      items: [
+        {
+          title: "Arıza Tipleri",
+          href: "/dashboard/ariza-tipleri",
+          icon: AlertCircle,
+          adminOnly: false,
+        },
+        {
+          title: "Uzmanlık Alanları",
+          href: "/dashboard/uzmanlik-alanlari",
+          icon: Briefcase,
+          adminOnly: false,
+        },
+        {
+          title: "Malzemeler",
+          href: "/dashboard/malzemeler",
+          icon: Package,
+          adminOnly: false,
+        },
+        {
+          title: "Teknikerler",
+          href: "/dashboard/teknikerler",
+          icon: Wrench,
+          adminOnly: false,
+        },
+      ]
     },
     {
-      title: "İzinler",
-      href: "/dashboard/permissions",
-      icon: Key,
-      adminOnly: false,
-    },
-    {
-      title: "Arıza Tipleri",
-      href: "/dashboard/ariza-tipleri",
-      icon: AlertCircle,
-      adminOnly: false,
-    },
-    {
-      title: "Uzmanlık Alanları",
-      href: "/dashboard/uzmanlik-alanlari",
-      icon: Briefcase,
-      adminOnly: false,
-    },
-    {
-      title: "Malzemeler",
-      href: "/dashboard/malzemeler",
-      icon: Package,
-      adminOnly: false,
-    },
-    {
-      title: "Teknikerler",
-      href: "/dashboard/teknikerler",
-      icon: Wrench,
-      adminOnly: false,
-    },
-    {
-      title: "Projeler",
-      href: "/dashboard/projeler",
-      icon: Building2,
-      adminOnly: false,
-    },
+      title: "Proje Yönetimi",
+      icon: FileText,
+      items: [
+        {
+          title: "Projeler",
+          href: "/dashboard/projeler",
+          icon: Building2,
+          adminOnly: false,
+        },
+      ]
+    }
   ];
+
+  // Function to render a single menu item
+  const renderMenuItem = (item: any) => {
+    if (item.adminOnly && !isAdmin) return null;
+    if (!item.showAlways && !isAdmin) return null;
+
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors",
+            pathname === item.href && "bg-slate-800 text-white"
+          )}
+        >
+          {item.icon && <item.icon className="h-5 w-5" />}
+          <span>{item.title}</span>
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <aside className="w-64 bg-slate-900 text-white flex flex-col h-full">
       <div className="p-6 border-b border-slate-700">
-        <h1 className="text-xl font-bold">Auth Yönetimi</h1>
+        <h1 className="text-xl font-bold">Yönetim Paneli</h1>
       </div>
       <nav className="flex-1 p-4">
-        <ul className="space-y-1">
-          {menuItems.map((item) => {
-            if (item.adminOnly && !isAdmin) return null;
-            if (!item.showAlways && !isAdmin) return null;
-
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors",
-                    pathname === item.href && "bg-slate-800 text-white"
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.title}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <Accordion type="multiple" defaultValue={["Genel"]} className="space-y-2">
+          {menuCategories.map((category) => (
+            <AccordionItem key={category.title} value={category.title}>
+              <AccordionTrigger className="flex items-center gap-3">
+                {category.icon && <category.icon className="h-5 w-5" />}
+                <span>{category.title}</span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <ul className="space-y-1 pl-2">
+                  {category.items.map((item) => renderMenuItem(item))}
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
       </nav>
       <div className="p-4 border-t border-slate-700">
         <div className="text-sm text-slate-400">

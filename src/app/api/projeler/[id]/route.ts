@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { db } from "@/lib/db";
 
 // GET: Belirli bir projeyi getir
 export async function GET(
@@ -24,7 +22,7 @@ export async function GET(
     const { id } = params;
 
     // Projeyi getir
-    const proje = await prisma.proje.findUnique({
+    const proje = await db.proje.findUnique({
       where: { id },
     });
 
@@ -81,7 +79,7 @@ export async function PUT(
     }
 
     // Projenin var olduğunu kontrol et
-    const existingProje = await prisma.proje.findUnique({
+    const existingProje = await db.proje.findUnique({
       where: { id },
     });
 
@@ -94,7 +92,7 @@ export async function PUT(
 
     // Aynı ada sahip başka bir kayıt var mı kontrol et (kendi dışında)
     if (ad !== existingProje.ad) {
-      const duplicateProje = await prisma.proje.findFirst({
+      const duplicateProje = await db.proje.findFirst({
         where: {
           ad,
           id: { not: id },
@@ -110,7 +108,7 @@ export async function PUT(
     }
 
     // Projeyi güncelle
-    const updatedProje = await prisma.proje.update({
+    const updatedProje = await db.proje.update({
       where: { id },
       data: {
         ad,
@@ -150,7 +148,7 @@ export async function DELETE(
     const { id } = params;
 
     // Projeyi kontrol et
-    const proje = await prisma.proje.findUnique({
+    const proje = await db.proje.findUnique({
       where: { id },
     });
 
@@ -162,7 +160,7 @@ export async function DELETE(
     }
 
     // Projeyi sil
-    await prisma.proje.delete({
+    await db.proje.delete({
       where: { id },
     });
 

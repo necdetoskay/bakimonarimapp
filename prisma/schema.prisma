@@ -16,113 +16,174 @@ model User {
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  role          Role      @relation(fields: [roleId], references: [id])
   roleId        String
+  role          Role      @relation(fields: [roleId], references: [id])
 }
 
 model Role {
-  id          String       @id @default(cuid())
-  name        String       @unique
+  id          String               @id @default(cuid())
+  name        String               @unique
   description String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  permissions PermissionsOnRoles[]
   users       User[]
-  permissions Permission[]
 }
 
 model Permission {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String               @id @default(cuid())
+  name        String               @unique
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  roles       Role[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  roles       PermissionsOnRoles[]
+}
+
+model PermissionsOnRoles {
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+
+  @@id([roleId, permissionId])
 }
 
 model ArizaTipi {
-  id          String   @id @default(cuid())
-  ad          String   @unique
-  ekbilgi     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  arizalar    Ariza[]
+  id        String   @id @default(cuid())
+  ad        String   @unique
+  ekbilgi   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  arizalar  Ariza[]
 }
 
 model UzmanlikAlani {
-  id          String      @id @default(cuid())
-  ad          String      @unique
+  id          String     @id @default(cuid())
+  ad          String     @unique
   ekbilgi     String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  teknikerler Tekniker[]  @relation("TeknikerUzmanlikAlani")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  teknikerler Tekniker[] @relation("TeknikerUzmanlikAlani")
 }
 
 model Malzeme {
-  id          String   @id @default(cuid())
-  ad          String   @unique
-  birim       String?
-  ekbilgi     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String           @id @default(cuid())
+  ad         String           @unique
+  birim      String?
+  ekbilgi    String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  randevular RandevuMalzeme[]
 }
 
 model Tekniker {
-  id              String          @id @default(cuid())
-  adsoyad         String
-  telefon         String?
-  ekbilgi         String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  uzmanlikAlanlari UzmanlikAlani[] @relation("TeknikerUzmanlikAlani")
+  id                  String            @id @default(cuid())
+  adsoyad             String
+  telefon             String?
+  ekbilgi             String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  randevular          Randevu[]
+  randevuBaglantilari RandevuTekniker[]
+  uzmanlikAlanlari    UzmanlikAlani[]   @relation("TeknikerUzmanlikAlani")
 }
 
 model Proje {
-  id          String   @id @default(cuid())
-  ad          String   @unique
-  ekbilgi     String?
-  adres       String
-  konum       String?
-  image       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  bloklar     Blok[]
+  id        String   @id @default(cuid())
+  ad        String   @unique
+  ekbilgi   String?
+  adres     String
+  konum     String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bloklar   Blok[]
 }
 
 model Blok {
-  id          String   @id @default(cuid())
-  ad          String
-  ekbilgi     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  proje       Proje    @relation(fields: [projeId], references: [id], onDelete: Cascade)
-  projeId     String
-  daireler    Daire[]
+  id        String   @id @default(cuid())
+  ad        String
+  ekbilgi   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projeId   String
+  proje     Proje    @relation(fields: [projeId], references: [id], onDelete: Cascade)
+  daireler  Daire[]
 }
 
 model Daire {
-  id          String   @id @default(cuid())
-  numara      String
-  kat         String?
-  ekbilgi     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  blok        Blok     @relation(fields: [blokId], references: [id], onDelete: Cascade)
-  blokId      String
-  arizalar    Ariza[]
+  id        String   @id @default(cuid())
+  numara    String
+  kat       String?
+  ekbilgi   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  blokId    String
+  arizalar  Ariza[]
+  blok      Blok     @relation(fields: [blokId], references: [id], onDelete: Cascade)
 }
 
 model Ariza {
-  id            String       @id @default(cuid())
-  bildirenKisi  String?
-  telefon       String?
-  aciklama      String
-  ekbilgi       String?
-  oncelik       String       @default("Orta") // Düşük, Orta, Yüksek
-  durum         String       @default("Talep Alındı") // Talep Alındı, Randevu Planlandı, Randevu Yeniden Planlandı, Kısmı Çözüm, Çözüm, İptal Edildi
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  daire         Daire        @relation(fields: [daireId], references: [id], onDelete: Cascade)
-  daireId       String
-  arizaTipi     ArizaTipi?   @relation(fields: [arizaTipiId], references: [id])
-  arizaTipiId   String?
-} 
+  id           String     @id @default(cuid())
+  bildirenKisi String?
+  telefon      String?
+  aciklama     String
+  ekbilgi      String?
+  oncelik      String     @default("Orta")
+  durum        String     @default("Talep Alındı")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  daireId      String
+  arizaTipiId  String?
+  arizaTipi    ArizaTipi? @relation(fields: [arizaTipiId], references: [id])
+  daire        Daire      @relation(fields: [daireId], references: [id], onDelete: Cascade)
+  randevular   Randevu[]
+}
+
+model Randevu {
+  id                   String            @id @default(cuid())
+  tarih                DateTime
+  notlar               String?
+  durum                String            @default("Planlandı")
+  sonuc                String?
+  arizaId              String
+  teknikerId           String?
+  oncekiRandevuId      String?           @unique
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  ariza                Ariza             @relation(fields: [arizaId], references: [id])
+  oncekiRandevu        Randevu?          @relation("RandevuToRandevu", fields: [oncekiRandevuId], references: [id])
+  sonrakiRandevu       Randevu?          @relation("RandevuToRandevu")
+  tekniker             Tekniker?         @relation(fields: [teknikerId], references: [id])
+  kullanilanMalzemeler RandevuMalzeme[]
+  teknikerler          RandevuTekniker[]
+}
+
+model RandevuMalzeme {
+  id        String   @id @default(cuid())
+  randevuId String
+  malzemeId String
+  miktar    Float
+  birim     String?
+  fiyat     Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  malzeme   Malzeme  @relation(fields: [malzemeId], references: [id])
+  randevu   Randevu  @relation(fields: [randevuId], references: [id], onDelete: Cascade)
+
+  @@unique([randevuId, malzemeId])
+}
+
+model RandevuTekniker {
+  id         String   @id @default(cuid())
+  randevuId  String
+  teknikerId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  randevu    Randevu  @relation(fields: [randevuId], references: [id])
+  tekniker   Tekniker @relation(fields: [teknikerId], references: [id])
+
+  @@unique([randevuId, teknikerId])
+}
