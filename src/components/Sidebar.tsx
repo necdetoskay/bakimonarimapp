@@ -17,7 +17,8 @@ import {
   Settings,
   LayoutDashboard,
   FileText,
-  Hammer
+  Hammer,
+  BarChart2
 } from "lucide-react";
 import { 
   Accordion, 
@@ -41,6 +42,12 @@ const Sidebar = () => {
           title: "Dashboard",
           href: "/dashboard",
           icon: Home,
+          showAlways: true,
+        },
+        {
+          title: "Raporlar",
+          href: "/dashboard/raporlar",
+          icon: BarChart2,
           showAlways: true,
         },
       ]
