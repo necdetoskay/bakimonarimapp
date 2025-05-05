@@ -26,10 +26,14 @@ export async function GET(
     const permission = await prisma.permission.findUnique({
       where: { id },
       include: {
-        roles: {
+       roles: {
           select: {
-            id: true,
-            name: true,
+            role: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -192,4 +196,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

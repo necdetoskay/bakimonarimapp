@@ -20,10 +20,14 @@ export async function GET() {
 
     const permissions = await prisma.permission.findMany({
       include: {
-        roles: {
+       roles: {
           select: {
-            id: true,
-            name: true,
+             role: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         _count: {
@@ -93,4 +97,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

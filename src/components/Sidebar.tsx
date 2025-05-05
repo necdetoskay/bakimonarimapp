@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
@@ -26,6 +25,7 @@ import {
   AccordionItem, 
   AccordionTrigger 
 } from "@/components/ui/accordion";
+import { NavigationLink } from "@/components/ui/navigation-link";
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -127,7 +127,7 @@ const Sidebar = () => {
 
     return (
       <li key={item.href}>
-        <Link
+        <NavigationLink
           href={item.href}
           className={cn(
             "flex items-center gap-3 rounded-md px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors",
@@ -136,7 +136,7 @@ const Sidebar = () => {
         >
           {item.icon && <item.icon className="h-5 w-5" />}
           <span>{item.title}</span>
-        </Link>
+        </NavigationLink>
       </li>
     );
   };
@@ -173,4 +173,4 @@ const Sidebar = () => {
   );
 };
 
-export default Sidebar; 
+export default Sidebar;

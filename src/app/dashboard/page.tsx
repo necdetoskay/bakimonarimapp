@@ -1,115 +1,81 @@
 "use client";
 
+import { Suspense, useMemo } from 'react';
 import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { BarChart4, RefreshCw } from "lucide-react";
-import Link from "next/link";
-import SummaryCards from "@/components/dashboard/SummaryCards";
-import FaultTypeChart from "@/components/dashboard/FaultTypeChart";
-import ActivityChart from "@/components/dashboard/ActivityChart";
-import RecentFaults from "@/components/dashboard/RecentFaults";
-import StatsOverview from "@/components/dashboard/StatsOverview";
-import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
-import { fetcher } from "@/utils/arizaUtils";
 import useSWR from "swr";
+import dynamic from 'next/dynamic';
+import { format, subDays } from 'date-fns';
+import { tr } from 'date-fns/locale';
 
-export default function Dashboard() {
+// Lazy loaded components
+const ArizaStats = dynamic(() => import('@/components/dashboard/stats/ArizaStats'));
+const ArizaBarChart = dynamic(() => import('@/components/dashboard/charts/ArizaBarChart'));
+const ArizaPieChart = dynamic(() => import('@/components/dashboard/charts/ArizaPieChart'));
+const ArizaAreaChart = dynamic(() => import('@/components/dashboard/charts/ArizaAreaChart'));
+const RecentArizalar = dynamic(() => import('@/components/dashboard/tables/RecentArizalar'));
+const PendingRandevular = dynamic(() => import('@/components/dashboard/tables/PendingRandevular'));
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export default function DashboardPage() {
   const { data: session } = useSession();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // SWR ile temel verileri çek - dashboard sayfasında yenile butonuna basıldığında kullanılacak
-  const { mutate: mutateArizalar } = useSWR(
-    session ? `/api/arizalar` : null,
-    fetcher,
-    { 
-      revalidateOnFocus: false,
-      dedupingInterval: 30000 // 30 saniye
-    }
-  );
+  const { data: arizalar = [] } = useSWR('/api/arizalar', fetcher);
+  const { data: randevular = [] } = useSWR('/api/randevular', fetcher);
 
-  // Sayfa yüklendiğinde loading durumunu güncelle
-  useEffect(() => {
-    // Kısa bir gösterim süresi ver
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Tüm veri yenileme fonksiyonu
-  const handleRefreshData = () => {
-    setIsLoading(true);
-    
-    // Tüm verileri yenile
-    mutateArizalar();
-    
-    toast({
-      title: "Veriler yenileniyor",
-      description: "Dashboard verileri güncelleniyor...",
-      duration: 3000,
+  // Arıza tipleri dağılımı
+  const arizaTipleriData = useMemo(() => {
+    const tiplerMap = new Map();
+    arizalar.forEach((ariza: any) => {
+      const tip = ariza.arizaTipi?.ad || 'Diğer';
+      tiplerMap.set(tip, (tiplerMap.get(tip) || 0) + 1);
     });
-    
-    // Yenileme sonrası loading durumunu güncelle
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  };
-  
-  // Veri yükleniyor ekranı
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-muted-foreground">Dashboard yükleniyor...</p>
-      </div>
-    );
-  }
-  
+    return Array.from(tiplerMap.entries()).map(([name, value]) => ({ name, value }));
+  }, [arizalar]);
+
+  // Son 30 günlük arıza trendi
+  const arizaTrendData = useMemo(() => {
+    const last30Days = [...Array(30)].map((_, i) => {
+      const date = subDays(new Date(), 29 - i);
+      const gun = format(date, 'dd MMM', { locale: tr });
+      const ariza = arizalar.filter((a: any) => 
+        format(new Date(a.createdAt), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+      ).length;
+      const cozulen = arizalar.filter((a: any) => 
+        format(new Date(a.updatedAt), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd') &&
+        a.durum === 'Çözüldü'
+      ).length;
+      return { gun, ariza, cozulen };
+    });
+    return last30Days;
+  }, [arizalar]);
+
   return (
-    <div className="space-y-6 animate-in fade-in-50 duration-500">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        
-        <div className="flex space-x-2">
-          <Link href="/dashboard/analytics">
-            <Button variant="outline" size="sm" className="mr-2">
-              <BarChart4 className="h-4 w-4 mr-2" />
-              Analitik Dashboard
-            </Button>
-          </Link>
-          <Button onClick={handleRefreshData} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Yenile
-          </Button>
-        </div>
+    <div className="space-y-6 p-6">
+      <Suspense fallback={<div>Yükleniyor...</div>}>
+        <ArizaStats arizalar={arizalar} />
+      </Suspense>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Suspense fallback={<div>Yükleniyor...</div>}>
+          <RecentArizalar arizalar={arizalar} />
+        </Suspense>
+        <Suspense fallback={<div>Yükleniyor...</div>}>
+          <PendingRandevular randevular={randevular} />
+        </Suspense>
       </div>
-      
-      {/* Özet Kartları Bileşeni */}
-      <SummaryCards />
-      
-      {/* Ana İçerik */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Arıza Tipleri Dağılımı */}
-        <div className="col-span-3">
-          <FaultTypeChart />
-        </div>
-        
-        {/* Son 30 gün aktivite grafiği */}
-        <div className="col-span-4">
-          <ActivityChart />
-        </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Suspense fallback={<div>Yükleniyor...</div>}>
+          <ArizaPieChart data={arizaTipleriData} title="Arıza Tipleri Dağılımı" />
+        </Suspense>
+        <Suspense fallback={<div>Yükleniyor...</div>}>
+          <ArizaBarChart data={arizaTipleriData} title="Arıza Tipleri İstatistikleri" />
+        </Suspense>
       </div>
-      
-      {/* Son Eklenen Arızalar */}
-      <RecentFaults />
-      
-      {/* Durum ve Performans Özeti */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatsOverview />
-      </div>
+
+      <Suspense fallback={<div>Yükleniyor...</div>}>
+        <ArizaAreaChart data={arizaTrendData} title="Son 30 Gün Arıza Trendi" />
+      </Suspense>
     </div>
   );
-} 
+}

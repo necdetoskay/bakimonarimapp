@@ -5,10 +5,13 @@ import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
+    console.log("Register API: Request received");
     const { name, email, password } = await request.json();
+    console.log("Register API: Request body parsed");
 
     // Basit validasyon
     if (!name || !email || !password) {
+      console.log("Register API: Validation failed - missing fields");
       return NextResponse.json(
         { message: "İsim, email ve şifre gereklidir" },
         { status: 400 }
@@ -65,11 +68,11 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Kayıt hatası:", error);
     return NextResponse.json(
-      { message: "Kullanıcı oluşturulurken bir hata oluştu" },
+      { message: "Kullanıcı oluşturulurken bir hata oluştu", error: error.message },
       { status: 500 }
     );
   }
-} 
+}

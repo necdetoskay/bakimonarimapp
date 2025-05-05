@@ -119,7 +119,7 @@ export default function StatsOverview() {
       setSecilenBlokunDaireleri([]);
     }
     
-  }, [arizaForm.projeId, arizaForm.blokId, projeler]);
+  }, [arizaForm.projeId, arizaForm.blokId]);
   
   // Veri yükleme durumunu kontrol et
   useEffect(() => {
@@ -733,4 +733,4 @@ export default function StatsOverview() {
       </Card>
     </>
   );
-} 
+}
